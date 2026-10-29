@@ -594,7 +594,7 @@ export async function generateQuotePdfAction(
     return {
       ok: false,
       error:
-        "PDF eksport on saadaval Business ja Pro paketis. Uuenda paketti Seaded → Tellimus või sea testimiseks andmebaasis Organization.plan = BUSINESS (ja subscriptionStatus = ACTIVE).",
+        "PDF eksport on saadaval Business ja Pro paketis pärast Stripe tellimuse aktiveerimist. Uuenda paketti Seaded → Tellimus.",
     };
   }
 

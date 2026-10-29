@@ -47,17 +47,14 @@ export function hasActiveSubscription(
   return status === "ACTIVE" || status === "TRIALING";
 }
 
-/** Paid features (PDF jne): Business/Pro + Stripe active/trialing, või käsitsi seatud plan ilma Stripe'ita (test). */
+/** Paid features (PDF jne): ainult Business/Pro + Stripe-kinnitatud ACTIVE/TRIALING. Starter jääb freemiumiks. */
 export function canUsePaidFeatures(org: {
   plan: OrganizationPlan;
   subscriptionStatus: SubscriptionStatus;
   stripeSubscriptionId: string | null;
 }): boolean {
   if (org.plan === "STARTER") return false;
-  if (hasActiveSubscription(org.subscriptionStatus)) return true;
-  // Manual DB upgrade for testing when Stripe is not linked
-  if (!org.stripeSubscriptionId) return true;
-  return false;
+  return hasActiveSubscription(org.subscriptionStatus);
 }
 
 export function canExportPdf(org: {

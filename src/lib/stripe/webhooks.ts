@@ -161,6 +161,20 @@ export async function handleStripeEvent(event: Stripe.Event) {
       });
       break;
     }
+    case "invoice.paid": {
+      const invoice = event.data.object as Stripe.Invoice;
+      const customerId =
+        typeof invoice.customer === "string" ? invoice.customer : null;
+      if (!customerId) break;
+      await prisma.organization.updateMany({
+        where: {
+          stripeCustomerId: customerId,
+          subscriptionStatus: { in: ["PAST_DUE", "INCOMPLETE", "UNPAID"] },
+        },
+        data: { subscriptionStatus: "ACTIVE" },
+      });
+      break;
+    }
     default:
       break;
   }

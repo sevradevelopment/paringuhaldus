@@ -72,7 +72,7 @@ export function BillingPanel({
 
       <div className="rounded-2xl border border-[var(--border)] bg-white p-5">
         <h3 className="font-display text-lg font-bold text-[var(--ink)]">
-          Praegune pakettt
+          Praegune pakett
         </h3>
         <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
           <div>
@@ -199,9 +199,10 @@ export function BillingPanel({
       ) : null}
 
       <p className="text-xs text-[var(--ink-muted)]">
-        Kasutusel on ainult Stripe TEST režiim. Kaardid: 4242… Testimiseks ilma
-        Stripe&apos;ita: sea DB-s <code>Organization.plan=BUSINESS</code> ja
-        jäta <code>stripeSubscriptionId</code> tühjaks.
+        Kasutusel on ainult Stripe TEST režiim. Testkaart: 4242 4242 4242 4242
+        (suvaline tulevane kuupäev ja CVC). Tasulised funktsioonid aktiveeruvad
+        pärast Stripe webhooki (ACTIVE/TRIALING). Tühistamine Customer Portalis
+        toimub perioodi lõpus.
       </p>
       <button
         type="button"
