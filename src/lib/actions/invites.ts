@@ -5,7 +5,7 @@ import { AuthError } from "next-auth";
 import { signIn } from "@/auth";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { prisma } from "@/lib/db";
-import { getMaxUsers } from "@/lib/billing/plans";
+import { getMaxUsersForOrg } from "@/lib/billing/plans";
 import { z } from "zod";
 
 const acceptSchema = z.object({
@@ -45,7 +45,7 @@ export async function acceptInviteAction(input: {
     return { ok: false, error: "Kutse on vigane või aegunud." };
   }
 
-  const maxUsers = getMaxUsers(invite.organization.plan);
+  const maxUsers = getMaxUsersForOrg(invite.organization);
   const memberCount = await prisma.membership.count({
     where: { organizationId: invite.organizationId },
   });

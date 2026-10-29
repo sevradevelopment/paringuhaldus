@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { put } from "@vercel/blob";
 import type { MembershipRole } from "@prisma/client";
 import { auth } from "@/auth";
-import { getMaxUsers } from "@/lib/billing/plans";
+import { getMaxUsersForOrg } from "@/lib/billing/plans";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { prisma } from "@/lib/db";
 import {
@@ -262,7 +262,7 @@ export async function inviteTeamMemberAction(
   const org = await prisma.organization.findUniqueOrThrow({
     where: { id: tenant.organizationId },
   });
-  const maxUsers = getMaxUsers(org.plan);
+  const maxUsers = getMaxUsersForOrg(org);
   const memberCount = await prisma.membership.count({
     where: { organizationId: tenant.organizationId },
   });

@@ -38,6 +38,7 @@ export function BillingPanel({
   currentPeriodEnd,
   stripeConfigured,
   stripeLiveMode,
+  hasStripeSubscription = false,
   checkoutNotice,
 }: {
   plan: OrganizationPlan;
@@ -46,6 +47,7 @@ export function BillingPanel({
   currentPeriodEnd: Date | string | null;
   stripeConfigured: boolean;
   stripeLiveMode: boolean;
+  hasStripeSubscription?: boolean;
   checkoutNotice?: string | null;
 }) {
   const router = useRouter();
@@ -53,6 +55,10 @@ export function BillingPanel({
   const [interval, setInterval] = useState<"monthly" | "yearly">("monthly");
   const [error, setError] = useState<string | null>(null);
   const periodEnd = asDate(currentPeriodEnd);
+
+  const hasManagedSubscription =
+    (subscriptionStatus === "ACTIVE" || subscriptionStatus === "TRIALING") &&
+    hasStripeSubscription;
 
   function checkout(planId: PlanId) {
     setError(null);
@@ -63,6 +69,9 @@ export function BillingPanel({
       });
       if (!result.ok) {
         setError(result.error);
+        if (result.portalUrl) {
+          window.location.href = result.portalUrl;
+        }
         return;
       }
       if (result.url) {
@@ -164,6 +173,14 @@ export function BillingPanel({
         </button>
       </div>
 
+      {hasManagedSubscription ? (
+        <p className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+          Aktiivne tellimus on juba olemas. Paketi muutmiseks, uuendamiseks või
+          tühistamiseks kasuta nuppu „Halda arveldust (Stripe)” — uut Checkouti ei
+          avata.
+        </p>
+      ) : null}
+
       <div className="grid gap-4 md:grid-cols-3">
         {(
           [
@@ -191,10 +208,10 @@ export function BillingPanel({
               <Button
                 type="button"
                 className="mt-4 w-full"
-                disabled={pending || !stripeConfigured}
+                disabled={pending || !stripeConfigured || hasManagedSubscription}
                 onClick={() => checkout(id)}
               >
-                Vali {label}
+                {hasManagedSubscription ? "Kasuta portaali" : `Vali ${label}`}
               </Button>
             </div>
           );

@@ -1,3 +1,4 @@
+import type { BillingInterval, OrganizationPlan } from "@prisma/client";
 import Stripe from "stripe";
 
 function secretKey(): string | undefined {
@@ -77,4 +78,36 @@ export function getStripePriceId(
   );
   if (!found) return null;
   return process.env[found.envKey]?.trim() || null;
+}
+
+function planKeyToEnum(plan: StripePriceEnv["plan"]): OrganizationPlan {
+  switch (plan) {
+    case "business":
+      return "BUSINESS";
+    case "pro":
+      return "PRO";
+    case "starter":
+    default:
+      return "STARTER";
+  }
+}
+
+/**
+ * Source of truth: map Stripe Price ID → plan/interval via STRIPE_PRICE_* env.
+ * Returns null when the price is unknown (caller may fall back to metadata).
+ */
+export function planFromStripePriceId(
+  priceId: string | null | undefined,
+): { plan: OrganizationPlan; interval: BillingInterval } | null {
+  if (!priceId) return null;
+  for (const item of STRIPE_PRICE_ENV_KEYS) {
+    const envPrice = process.env[item.envKey]?.trim();
+    if (envPrice && envPrice === priceId) {
+      return {
+        plan: planKeyToEnum(item.plan),
+        interval: item.interval === "yearly" ? "YEARLY" : "MONTHLY",
+      };
+    }
+  }
+  return null;
 }

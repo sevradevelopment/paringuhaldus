@@ -43,6 +43,7 @@ export default async function TellimusSettingsPage({
           currentPeriodEnd={org.currentPeriodEnd}
           stripeConfigured={isStripeConfigured()}
           stripeLiveMode={isStripeLiveMode()}
+          hasStripeSubscription={Boolean(org.stripeSubscriptionId)}
           checkoutNotice={notice}
         />
       </CardContent>

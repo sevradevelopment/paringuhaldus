@@ -1,7 +1,11 @@
 "use server";
 
 import { auth } from "@/auth";
-import { planIdToEnum, type PlanId } from "@/lib/billing/plans";
+import {
+  hasActiveSubscription,
+  planIdToEnum,
+  type PlanId,
+} from "@/lib/billing/plans";
 import { prisma } from "@/lib/db";
 import {
   getStripe,
@@ -11,7 +15,7 @@ import {
 
 export type BillingActionResult =
   | { ok: true; url?: string }
-  | { ok: false; error: string };
+  | { ok: false; error: string; portalUrl?: string };
 
 function appBaseUrl() {
   return (
@@ -55,6 +59,34 @@ export async function createCheckoutSessionAction(input: {
     where: { id: session.user.organizationId },
   });
   if (!org) return { ok: false, error: "Organisatsiooni ei leitud" };
+
+  // Prevent duplicate subscriptions: active/trialing + existing Stripe sub → Portal
+  if (
+    hasActiveSubscription(org.subscriptionStatus) &&
+    org.stripeSubscriptionId
+  ) {
+    if (org.stripeCustomerId) {
+      try {
+        const portal = await stripe.billingPortal.sessions.create({
+          customer: org.stripeCustomerId,
+          return_url: `${appBaseUrl()}/app/seaded/tellimus`,
+        });
+        return {
+          ok: false,
+          error:
+            "Sul on juba aktiivne tellimus. Uue Checkouti avamine on blokeeritud — suuname sind Stripe arveldusportaali.",
+          portalUrl: portal.url,
+        };
+      } catch (error) {
+        console.error("[billing] portal session for duplicate block failed", error);
+      }
+    }
+    return {
+      ok: false,
+      error:
+        "Sul on juba aktiivne või prooviperioodi tellimus. Uue Checkouti avamine on blokeeritud. Paketi muutmiseks või tühistamiseks kasuta nuppu „Halda arveldust (Stripe)”.",
+    };
+  }
 
   let customerId = org.stripeCustomerId;
   if (!customerId) {

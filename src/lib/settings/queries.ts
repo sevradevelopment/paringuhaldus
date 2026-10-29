@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/db";
-import { getMaxUsers, PLAN_LIMITS } from "@/lib/billing/plans";
+import {
+  getEffectivePlan,
+  getMaxUsersForOrg,
+  PLAN_LIMITS,
+} from "@/lib/billing/plans";
 
 export async function getOrganizationSettings(organizationId: string) {
   return prisma.organization.findUnique({
@@ -44,7 +48,8 @@ export async function getPlanUsage(organizationId: string) {
       expiresAt: { gt: new Date() },
     },
   });
-  const maxUsers = getMaxUsers(org.plan);
+  const effectivePlan = getEffectivePlan(org);
+  const maxUsers = getMaxUsersForOrg(org);
 
   return {
     org,
@@ -52,6 +57,6 @@ export async function getPlanUsage(organizationId: string) {
     pendingInvites,
     seatsUsed: memberCount + pendingInvites,
     maxUsers,
-    planLabel: PLAN_LIMITS[org.plan].label,
+    planLabel: PLAN_LIMITS[effectivePlan].label,
   };
 }

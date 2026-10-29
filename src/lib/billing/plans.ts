@@ -47,24 +47,46 @@ export function hasActiveSubscription(
   return status === "ACTIVE" || status === "TRIALING";
 }
 
-/** Paid features (PDF jne): ainult Business/Pro + Stripe-kinnitatud ACTIVE/TRIALING. Starter jääb freemiumiks. */
-export function canUsePaidFeatures(org: {
+export type OrgBillingFields = {
   plan: OrganizationPlan;
   subscriptionStatus: SubscriptionStatus;
   stripeSubscriptionId: string | null;
-}): boolean {
-  if (org.plan === "STARTER") return false;
-  return hasActiveSubscription(org.subscriptionStatus);
+};
+
+/**
+ * Effective entitlements plan: paid plans (BUSINESS/PRO) only when
+ * subscriptionStatus is ACTIVE/TRIALING and stripeSubscriptionId is set.
+ * Otherwise treat as STARTER (freemium).
+ */
+export function getEffectivePlan(org: OrgBillingFields): OrganizationPlan {
+  if (org.plan === "STARTER") return "STARTER";
+  if (!hasActiveSubscription(org.subscriptionStatus)) return "STARTER";
+  if (!org.stripeSubscriptionId) {
+    console.warn(
+      "[billing] paid plan without stripeSubscriptionId — treating as STARTER",
+      { plan: org.plan, status: org.subscriptionStatus },
+    );
+    return "STARTER";
+  }
+  return org.plan;
 }
 
-export function canExportPdf(org: {
-  plan: OrganizationPlan;
-  subscriptionStatus: SubscriptionStatus;
-  stripeSubscriptionId: string | null;
-}): boolean {
-  return PLAN_LIMITS[org.plan].pdfExport && canUsePaidFeatures(org);
+/** Paid features (PDF jne): ainult Business/Pro + Stripe-kinnitatud ACTIVE/TRIALING + subscription id. */
+export function canUsePaidFeatures(org: OrgBillingFields): boolean {
+  const effective = getEffectivePlan(org);
+  return effective === "BUSINESS" || effective === "PRO";
+}
+
+export function canExportPdf(org: OrgBillingFields): boolean {
+  const effective = getEffectivePlan(org);
+  return PLAN_LIMITS[effective].pdfExport && canUsePaidFeatures(org);
 }
 
 export function getMaxUsers(plan: OrganizationPlan): number | null {
   return PLAN_LIMITS[plan].maxUsers;
+}
+
+/** Seat limit from effective (subscription-gated) plan. */
+export function getMaxUsersForOrg(org: OrgBillingFields): number | null {
+  return PLAN_LIMITS[getEffectivePlan(org)].maxUsers;
 }
