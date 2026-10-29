@@ -3,7 +3,7 @@ import { BillingPanel } from "@/components/settings/billing-panel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireOrgSession } from "@/lib/auth/session";
 import { getOrganizationSettings } from "@/lib/settings/queries";
-import { isStripeConfigured } from "@/lib/stripe/client";
+import { isStripeConfigured, isStripeLiveMode } from "@/lib/stripe/client";
 
 export const metadata: Metadata = {
   title: "Tellimus – Seaded – Päringuhaldus.ee",
@@ -42,6 +42,7 @@ export default async function TellimusSettingsPage({
           billingInterval={org.billingInterval}
           currentPeriodEnd={org.currentPeriodEnd}
           stripeConfigured={isStripeConfigured()}
+          stripeLiveMode={isStripeLiveMode()}
           checkoutNotice={notice}
         />
       </CardContent>

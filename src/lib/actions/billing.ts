@@ -34,7 +34,7 @@ export async function createCheckoutSessionAction(input: {
     return {
       ok: false,
       error:
-        "Stripe test-režiim pole seadistatud. Lisa STRIPE_SECRET_KEY (sk_test_…), NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY (pk_test_…) ja hinnapakettide price ID-d.",
+        "Stripe pole seadistatud. Lisa STRIPE_SECRET_KEY, NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ja hinnapakettide price ID-d.",
     };
   }
 

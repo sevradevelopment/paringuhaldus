@@ -25,25 +25,34 @@ const statusLabel: Record<SubscriptionStatus, string> = {
   UNPAID: "Maksmata",
 };
 
+function asDate(value: Date | string | null | undefined): Date | null {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 export function BillingPanel({
   plan,
   subscriptionStatus,
   billingInterval,
   currentPeriodEnd,
   stripeConfigured,
+  stripeLiveMode,
   checkoutNotice,
 }: {
   plan: OrganizationPlan;
   subscriptionStatus: SubscriptionStatus;
   billingInterval: BillingInterval | null;
-  currentPeriodEnd: Date | null;
+  currentPeriodEnd: Date | string | null;
   stripeConfigured: boolean;
+  stripeLiveMode: boolean;
   checkoutNotice?: string | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [interval, setInterval] = useState<"monthly" | "yearly">("monthly");
   const [error, setError] = useState<string | null>(null);
+  const periodEnd = asDate(currentPeriodEnd);
 
   function checkout(planId: PlanId) {
     setError(null);
@@ -96,7 +105,7 @@ export function BillingPanel({
           <div>
             <dt className="text-[var(--ink-muted)]">Järgmine makse / lõpp</dt>
             <dd className="font-semibold">
-              {currentPeriodEnd ? formatEtDate(currentPeriodEnd) : "—"}
+              {periodEnd ? formatEtDate(periodEnd) : "—"}
             </dd>
           </div>
         </dl>
@@ -131,10 +140,10 @@ export function BillingPanel({
 
       {!stripeConfigured ? (
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          Stripe TEST võtmed puuduvad. Lisa{" "}
+          Stripe võtmed puuduvad. Lisa{" "}
           <code>STRIPE_SECRET_KEY</code>,{" "}
           <code>NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY</code>, webhook secret ja
-          price ID-d. Live/tootmisvõtmeid ei kasutata.
+          price ID-d.
         </p>
       ) : null}
 
@@ -199,10 +208,9 @@ export function BillingPanel({
       ) : null}
 
       <p className="text-xs text-[var(--ink-muted)]">
-        Kasutusel on ainult Stripe TEST režiim. Testkaart: 4242 4242 4242 4242
-        (suvaline tulevane kuupäev ja CVC). Tasulised funktsioonid aktiveeruvad
-        pärast Stripe webhooki (ACTIVE/TRIALING). Tühistamine Customer Portalis
-        toimub perioodi lõpus.
+        {stripeLiveMode
+          ? "Kasutusel on Stripe LIVE (tootmine). Makseid võetakse päris rahaga. Tasulised funktsioonid aktiveeruvad pärast Stripe webhooki (ACTIVE/TRIALING). Tühistamine Customer Portalis toimub perioodi lõpus."
+          : "Kasutusel on Stripe TEST režiim. Testkaart: 4242 4242 4242 4242 (suvaline tulevane kuupäev ja CVC). Tasulised funktsioonid aktiveeruvad pärast Stripe webhooki (ACTIVE/TRIALING). Tühistamine Customer Portalis toimub perioodi lõpus."}
       </p>
       <button
         type="button"

@@ -78,6 +78,43 @@ export async function handleStripeEvent(event: Stripe.Event) {
 
       const plan = planFromMetadata(session.metadata) ?? "STARTER";
       const interval = intervalFromMetadata(session.metadata);
+      const subscriptionId =
+        typeof session.subscription === "string"
+          ? session.subscription
+          : null;
+
+      let periodEnd: Date | null = null;
+      let priceId: string | undefined;
+      if (subscriptionId) {
+        const { getStripe } = await import("@/lib/stripe/client");
+        const stripe = getStripe();
+        if (stripe) {
+          try {
+            const subscription =
+              await stripe.subscriptions.retrieve(subscriptionId);
+            const item = subscription.items.data[0];
+            const periodEndUnix =
+              (
+                subscription as Stripe.Subscription & {
+                  current_period_end?: number;
+                }
+              ).current_period_end ??
+              (
+                item as { current_period_end?: number } | undefined
+              )?.current_period_end ??
+              null;
+            if (periodEndUnix) {
+              periodEnd = new Date(periodEndUnix * 1000);
+            }
+            priceId = item?.price?.id;
+          } catch (error) {
+            console.error(
+              "[stripe.webhook] subscription retrieve failed",
+              error,
+            );
+          }
+        }
+      }
 
       await prisma.organization.update({
         where: { id: organizationId },
@@ -88,10 +125,9 @@ export async function handleStripeEvent(event: Stripe.Event) {
             typeof session.customer === "string"
               ? session.customer
               : undefined,
-          stripeSubscriptionId:
-            typeof session.subscription === "string"
-              ? session.subscription
-              : undefined,
+          stripeSubscriptionId: subscriptionId ?? undefined,
+          stripePriceId: priceId,
+          currentPeriodEnd: periodEnd ?? undefined,
           subscriptionStatus: "ACTIVE",
         },
       });

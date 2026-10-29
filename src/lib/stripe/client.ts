@@ -1,11 +1,36 @@
 import Stripe from "stripe";
 
+function secretKey(): string | undefined {
+  return process.env.STRIPE_SECRET_KEY?.trim() || undefined;
+}
+
+function publishableKey(): string | undefined {
+  return process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.trim() || undefined;
+}
+
+/** Accepts sk_/rk_ test or live secret keys. */
+export function isStripeSecretKey(key: string): boolean {
+  return /^(sk|rk)_(test|live)_/.test(key);
+}
+
+export function isStripePublishableKey(key: string): boolean {
+  return /^pk_(test|live)_/.test(key);
+}
+
+export function isStripeLiveMode(): boolean {
+  const secret = secretKey();
+  const pub = publishableKey();
+  return Boolean(
+    secret?.includes("_live_") && pub?.startsWith("pk_live_"),
+  );
+}
+
 export function getStripe(): Stripe | null {
-  const key = process.env.STRIPE_SECRET_KEY?.trim();
+  const key = secretKey();
   if (!key) return null;
-  if (!key.startsWith("sk_test_")) {
+  if (!isStripeSecretKey(key)) {
     console.warn(
-      "[stripe] Expected a Stripe TEST secret key (sk_test_…). Refusing non-test key.",
+      "[stripe] Expected a Stripe secret key (sk_test_/sk_live_/rk_test_/rk_live_). Refusing invalid key.",
     );
     return null;
   }
@@ -13,12 +38,19 @@ export function getStripe(): Stripe | null {
 }
 
 export function isStripeConfigured(): boolean {
-  return Boolean(
-    process.env.STRIPE_SECRET_KEY?.trim()?.startsWith("sk_test_") &&
-      process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.trim()?.startsWith(
-        "pk_test_",
-      ),
-  );
+  const secret = secretKey();
+  const pub = publishableKey();
+  if (!secret || !pub) return false;
+  if (!isStripeSecretKey(secret) || !isStripePublishableKey(pub)) return false;
+  const secretLive = secret.includes("_live_");
+  const pubLive = pub.startsWith("pk_live_");
+  if (secretLive !== pubLive) {
+    console.warn(
+      "[stripe] Secret and publishable key mode mismatch (test vs live).",
+    );
+    return false;
+  }
+  return true;
 }
 
 export type StripePriceEnv = {
