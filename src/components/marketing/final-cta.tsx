@@ -31,7 +31,7 @@ export function FinalCta() {
               </ButtonLink>
             </div>
             <p className="mt-4 text-xs text-[var(--ink-muted)]">
-              Registreerimine avatakse peagi. Nupp viib registreerimislehele.
+              Tasuta alustamine — loo konto paari minutiga.
             </p>
           </div>
         </div>
