@@ -14,6 +14,37 @@ enum MembershipRole {
   MEMBER
 }
 
+enum InquiryStatus {
+  UUS
+  TOOS
+  OOTEL
+  LOPETATUD
+  TYHISTATUD
+}
+
+enum InquiryPriority {
+  MADAL
+  TAVALINE
+  KORGE
+}
+
+enum InquiryActivityType {
+  CREATED
+  UPDATED
+  STATUS_CHANGED
+  NOTE_ADDED
+  ARCHIVED
+  RESTORED
+  CLIENT_LINKED
+}
+
+enum QuoteStatus {
+  PENDING
+  SENT
+  ACCEPTED
+  REJECTED
+}
+
 model User {
   id             String       @id @default(cuid())
   name           String?
@@ -27,21 +58,8 @@ model User {
   accounts       Account[]
   sessions       Session[]
   memberships    Membership[]
-}
-
-enum InquiryStatus {
-  UUS
-  TOOS
-  PAKKUMINE
-  VOIDETUD
-  KAOTATUD
-}
-
-enum QuoteStatus {
-  PENDING
-  SENT
-  ACCEPTED
-  REJECTED
+  inquiryNotes   InquiryNote[]
+  inquiryActivities InquiryActivity[]
 }
 
 model Organization {
@@ -54,6 +72,8 @@ model Organization {
   clients     Client[]
   inquiries   Inquiry[]
   quotes      Quote[]
+  inquiryNotes InquiryNote[]
+  inquiryActivities InquiryActivity[]
 }
 
 model Client {
@@ -68,24 +88,65 @@ model Client {
   inquiries      Inquiry[]
 
   @@index([organizationId])
+  @@index([organizationId, name])
 }
 
 model Inquiry {
-  id             String        @id @default(cuid())
+  id             String           @id @default(cuid())
   organizationId String
   clientId       String?
   title          String
-  status         InquiryStatus @default(UUS)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  client         Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  description    String?          @db.Text
+  status         InquiryStatus    @default(UUS)
+  priority       InquiryPriority  @default(TAVALINE)
+  archivedAt     DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client         Client?          @relation(fields: [clientId], references: [id], onDelete: SetNull)
   quotes         Quote[]
+  notes          InquiryNote[]
+  activities     InquiryActivity[]
 
   @@index([organizationId])
   @@index([organizationId, status])
   @@index([organizationId, createdAt])
+  @@index([organizationId, archivedAt])
+  @@index([organizationId, priority])
   @@index([clientId])
+}
+
+model InquiryNote {
+  id             String       @id @default(cuid())
+  organizationId String
+  inquiryId      String
+  authorId       String?
+  body           String       @db.Text
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inquiry        Inquiry      @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+  author         User?        @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([inquiryId, createdAt])
+}
+
+model InquiryActivity {
+  id             String              @id @default(cuid())
+  organizationId String
+  inquiryId      String
+  actorId        String?
+  type           InquiryActivityType
+  message        String
+  meta           Json?
+  createdAt      DateTime            @default(now())
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inquiry        Inquiry             @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+  actor          User?               @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([inquiryId, createdAt])
 }
 
 model Quote {

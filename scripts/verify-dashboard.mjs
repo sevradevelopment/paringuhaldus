@@ -111,14 +111,23 @@ async function main() {
     console.log("OK", label);
   }
 
-  const placeholder = await fetch(`${base}/app/paringud`, {
+  const placeholder = await fetch(`${base}/app/kliendid`, {
     headers: { Cookie: cookieHeader },
   });
   const placeholderHtml = await placeholder.text();
   if (!placeholderHtml.includes("Peagi")) {
     throw new Error("Placeholder page missing Peagi empty state");
   }
-  console.log("OK placeholder /app/paringud");
+  console.log("OK placeholder /app/kliendid");
+
+  const inquiries = await fetch(`${base}/app/paringud`, {
+    headers: { Cookie: cookieHeader },
+  });
+  const inquiriesHtml = await inquiries.text();
+  if (!inquiriesHtml.includes("Uus päring")) {
+    throw new Error("Inquiries page missing create CTA");
+  }
+  console.log("OK /app/paringud module");
 
   const counts = await Promise.all([
     prisma.inquiry.count({ where: { organizationId } }),

@@ -61,7 +61,7 @@ async function OverviewContent() {
         <StatCard
           title="Aktiivsed päringud"
           value={stats.activeInquiries}
-          description="Uus, töös või pakkumine"
+          description="Uus, töös või ootel"
           icon={ClipboardList}
         />
         <StatCard

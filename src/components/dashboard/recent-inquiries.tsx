@@ -1,8 +1,9 @@
+import Link from "next/link";
 import { Inbox } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { StatusBadge } from "@/components/dashboard/status-badge";
-import { formatEtDate } from "@/lib/dashboard/labels";
+import { formatEtDate } from "@/lib/inquiries/labels";
 import type { RecentInquiryRow } from "@/lib/dashboard/queries";
 
 export function RecentInquiries({ rows }: { rows: RecentInquiryRow[] }) {
@@ -45,7 +46,12 @@ export function RecentInquiries({ rows }: { rows: RecentInquiryRow[] }) {
                       className="border-b border-[var(--border)]/60 last:border-0"
                     >
                       <td className="px-5 py-3.5 font-medium text-[var(--ink)]">
-                        {row.title}
+                        <Link
+                          href={`/app/paringud/${row.id}`}
+                          className="hover:text-[var(--brand)]"
+                        >
+                          {row.title}
+                        </Link>
                       </td>
                       <td className="px-5 py-3.5 text-[var(--ink-muted)]">
                         {row.clientName ?? "—"}
@@ -64,7 +70,11 @@ export function RecentInquiries({ rows }: { rows: RecentInquiryRow[] }) {
 
             <ul className="divide-y divide-[var(--border)]/70 md:hidden">
               {rows.map((row) => (
-                <li key={row.id} className="space-y-2 px-5 py-4">
+                <li key={row.id}>
+                  <Link
+                    href={`/app/paringud/${row.id}`}
+                    className="block space-y-2 px-5 py-4 hover:bg-[var(--surface-muted)]/40"
+                  >
                   <div className="flex items-start justify-between gap-3">
                     <p className="font-medium text-[var(--ink)]">{row.title}</p>
                     <StatusBadge status={row.status} />
@@ -76,6 +86,7 @@ export function RecentInquiries({ rows }: { rows: RecentInquiryRow[] }) {
                       {formatEtDate(row.createdAt)}
                     </span>
                   </div>
+                  </Link>
                 </li>
               ))}
             </ul>

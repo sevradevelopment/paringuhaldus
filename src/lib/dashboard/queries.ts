@@ -1,6 +1,6 @@
 import type { InquiryStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { ACTIVE_INQUIRY_STATUSES } from "@/lib/dashboard/labels";
+import { ACTIVE_INQUIRY_STATUSES } from "@/lib/inquiries/labels";
 
 export type DashboardStats = {
   totalInquiries: number;
@@ -22,10 +22,13 @@ export async function getDashboardStats(
 ): Promise<DashboardStats> {
   const [totalInquiries, activeInquiries, pendingQuotes, clientsCount] =
     await Promise.all([
-      prisma.inquiry.count({ where: { organizationId } }),
+      prisma.inquiry.count({
+        where: { organizationId, archivedAt: null },
+      }),
       prisma.inquiry.count({
         where: {
           organizationId,
+          archivedAt: null,
           status: { in: ACTIVE_INQUIRY_STATUSES },
         },
       }),
@@ -48,7 +51,7 @@ export async function getRecentInquiries(
   take = 8,
 ): Promise<RecentInquiryRow[]> {
   const rows = await prisma.inquiry.findMany({
-    where: { organizationId },
+    where: { organizationId, archivedAt: null },
     orderBy: { createdAt: "desc" },
     take,
     select: {
