@@ -1,48 +1,29 @@
 import { Suspense } from "react";
-import { redirect } from "next/navigation";
-import { auth, signOut } from "@/auth";
-import { SiteLogo } from "@/components/site-logo";
-import { Button } from "@/components/ui/button";
+import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 
 export const instant = false;
 
-async function AppHeader() {
-  const session = await auth();
-  if (!session?.user?.id || !session.user.organizationId) {
-    redirect("/login");
-  }
-
+function ShellFallback() {
   return (
-    <header className="border-b border-[var(--border)]/80 bg-[var(--surface)]/90 backdrop-blur-md">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:h-16 sm:px-6 lg:px-8">
-        <SiteLogo href="/app" />
-        <div className="flex items-center gap-3">
-          <span className="hidden text-sm text-[var(--ink-muted)] sm:inline">
-            {session.user.organizationName ?? "Töökeskkond"}
-          </span>
-          <form
-            action={async () => {
-              "use server";
-              await signOut({ redirectTo: "/" });
-            }}
-          >
-            <Button type="submit" variant="ghost" size="sm">
-              Logi välja
-            </Button>
-          </form>
-        </div>
+    <div className="flex min-h-full bg-[var(--surface)]">
+      <aside className="hidden w-60 shrink-0 border-r border-[var(--border)] lg:block" />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="h-14 border-b border-[var(--border)] sm:h-16" />
+        <main className="flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+          <div className="mx-auto w-full max-w-6xl">
+            <div className="h-8 w-48 animate-pulse rounded-lg bg-[var(--surface-muted)]" />
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-32 animate-pulse rounded-2xl bg-[var(--surface-muted)]"
+                />
+              ))}
+            </div>
+          </div>
+        </main>
       </div>
-    </header>
-  );
-}
-
-function HeaderFallback() {
-  return (
-    <header className="border-b border-[var(--border)]/80 bg-[var(--surface)]/90">
-      <div className="mx-auto flex h-14 max-w-6xl items-center px-4 sm:h-16 sm:px-6 lg:px-8">
-        <SiteLogo href="/app" />
-      </div>
-    </header>
+    </div>
   );
 }
 
@@ -52,11 +33,8 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-full bg-[var(--surface)]">
-      <Suspense fallback={<HeaderFallback />}>
-        <AppHeader />
-      </Suspense>
-      <main>{children}</main>
-    </div>
+    <Suspense fallback={<ShellFallback />}>
+      <DashboardShell>{children}</DashboardShell>
+    </Suspense>
   );
 }

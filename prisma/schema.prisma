@@ -29,6 +29,21 @@ model User {
   memberships    Membership[]
 }
 
+enum InquiryStatus {
+  UUS
+  TOOS
+  PAKKUMINE
+  VOIDETUD
+  KAOTATUD
+}
+
+enum QuoteStatus {
+  PENDING
+  SENT
+  ACCEPTED
+  REJECTED
+}
+
 model Organization {
   id          String       @id @default(cuid())
   name        String
@@ -36,6 +51,58 @@ model Organization {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   memberships Membership[]
+  clients     Client[]
+  inquiries   Inquiry[]
+  quotes      Quote[]
+}
+
+model Client {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  email          String?
+  phone          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inquiries      Inquiry[]
+
+  @@index([organizationId])
+}
+
+model Inquiry {
+  id             String        @id @default(cuid())
+  organizationId String
+  clientId       String?
+  title          String
+  status         InquiryStatus @default(UUS)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client         Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  quotes         Quote[]
+
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([organizationId, createdAt])
+  @@index([clientId])
+}
+
+model Quote {
+  id             String       @id @default(cuid())
+  organizationId String
+  inquiryId      String?
+  title          String
+  status         QuoteStatus  @default(PENDING)
+  amountCents    Int?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inquiry        Inquiry?     @relation(fields: [inquiryId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([inquiryId])
 }
 
 model Membership {

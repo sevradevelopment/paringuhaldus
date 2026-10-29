@@ -1,54 +1,114 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import {
+  ClipboardList,
+  FileClock,
+  Inbox,
+  Users,
+} from "lucide-react";
+import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { RecentInquiries } from "@/components/dashboard/recent-inquiries";
+import { StatCard } from "@/components/dashboard/stat-card";
+import {
+  getDashboardStats,
+  getRecentInquiries,
+} from "@/lib/dashboard/queries";
 
 export const metadata: Metadata = {
-  title: "Töökeskkond – Päringuhaldus.ee",
+  title: "Ülevaade – Päringuhaldus.ee",
 };
 
 export const instant = false;
 
-async function WorkspaceWelcome() {
+async function OverviewContent() {
   const session = await auth();
+  if (!session?.user?.organizationId) {
+    redirect("/login");
+  }
+
+  const organizationId = session.user.organizationId;
+  const [stats, recent] = await Promise.all([
+    getDashboardStats(organizationId),
+    getRecentInquiries(organizationId),
+  ]);
+
+  const firstName = session.user.name?.trim()?.split(/\s+/)[0];
 
   return (
-    <>
-      <h1 className="mt-2 font-display text-3xl font-extrabold tracking-tight text-[var(--ink)] sm:text-4xl">
-        Tere tulemast
-        {session?.user?.name ? `, ${session.user.name}` : ""}
-      </h1>
-      <p className="mt-4 max-w-xl text-base leading-relaxed text-[var(--ink-muted)]">
-        Töökeskkond on peagi saadaval. Siia tulevad päringud, ülevaade ja
-        meeskonna seaded — praegu on see vaid koht pärast sisselogimist.
-      </p>
-      <div className="mt-8 rounded-2xl border border-dashed border-[var(--border-strong)] bg-[var(--surface-muted)]/60 px-6 py-10 text-center">
-        <p className="font-display text-lg font-bold text-[var(--ink)]">
-          Töökeskkond coming soon
-        </p>
-        <p className="mt-2 text-sm text-[var(--ink-muted)]">
-          Organisatsioon: {session?.user?.organizationName ?? "—"}
+    <div className="space-y-8">
+      <div>
+        <p className="text-sm font-medium text-[var(--brand)]">Ülevaade</p>
+        <h1 className="mt-1 font-display text-2xl font-extrabold tracking-tight text-[var(--ink)] sm:text-3xl">
+          Tere{firstName ? `, ${firstName}` : ""}
+        </h1>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--ink-muted)] sm:text-base">
+          Kiire ülevaade sinu organisatsiooni päringutest, pakkumistest ja
+          klientidest.
         </p>
       </div>
-    </>
+
+      <section
+        aria-label="Statistika"
+        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+      >
+        <StatCard
+          title="Päringuid kokku"
+          value={stats.totalInquiries}
+          description="Kõik registreeritud päringud"
+          icon={Inbox}
+        />
+        <StatCard
+          title="Aktiivsed päringud"
+          value={stats.activeInquiries}
+          description="Uus, töös või pakkumine"
+          icon={ClipboardList}
+        />
+        <StatCard
+          title="Ootel hinnapakkumised"
+          value={stats.pendingQuotes}
+          description="Ootel staatusega pakkumised"
+          icon={FileClock}
+        />
+        <StatCard
+          title="Kliendid"
+          value={stats.clientsCount}
+          description="Organisatsiooni kliendid"
+          icon={Users}
+        />
+      </section>
+
+      <section aria-label="Viimased päringud">
+        <RecentInquiries rows={recent} />
+      </section>
+    </div>
   );
 }
 
-export default function AppHomePage() {
+function OverviewFallback() {
   return (
-    <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
-      <p className="text-sm font-medium text-[var(--brand)]">Töökeskkond</p>
-      <Suspense
-        fallback={
-          <>
-            <h1 className="mt-2 font-display text-3xl font-extrabold tracking-tight text-[var(--ink)] sm:text-4xl">
-              Tere tulemast
-            </h1>
-            <p className="mt-4 text-base text-[var(--ink-muted)]">Laadin…</p>
-          </>
-        }
-      >
-        <WorkspaceWelcome />
-      </Suspense>
+    <div className="space-y-8">
+      <div>
+        <div className="h-4 w-20 animate-pulse rounded bg-[var(--surface-muted)]" />
+        <div className="mt-3 h-8 w-56 animate-pulse rounded-lg bg-[var(--surface-muted)]" />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div
+            key={i}
+            className="h-32 animate-pulse rounded-2xl bg-[var(--surface-muted)]"
+          />
+        ))}
+      </div>
+      <div className="h-64 animate-pulse rounded-2xl bg-[var(--surface-muted)]" />
     </div>
+  );
+}
+
+export default function AppOverviewPage() {
+  return (
+    <Suspense fallback={<OverviewFallback />}>
+      <OverviewContent />
+    </Suspense>
   );
 }
