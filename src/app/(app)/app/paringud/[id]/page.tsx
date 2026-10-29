@@ -115,9 +115,22 @@ export default async function InquiryDetailPage({
                   <div>
                     <dt className="text-[var(--ink-muted)]">Nimi</dt>
                     <dd className="font-medium text-[var(--ink)]">
-                      {inquiry.client.name}
+                      <Link
+                        href={`/app/kliendid/${inquiry.client.id}`}
+                        className="hover:text-[var(--brand)]"
+                      >
+                        {inquiry.client.name}
+                      </Link>
                     </dd>
                   </div>
+                  {inquiry.client.companyName ? (
+                    <div>
+                      <dt className="text-[var(--ink-muted)]">Ettevõte</dt>
+                      <dd className="text-[var(--ink)]">
+                        {inquiry.client.companyName}
+                      </dd>
+                    </div>
+                  ) : null}
                   {inquiry.client.email ? (
                     <div>
                       <dt className="text-[var(--ink-muted)]">E-post</dt>
@@ -130,6 +143,14 @@ export default async function InquiryDetailPage({
                       <dd className="text-[var(--ink)]">{inquiry.client.phone}</dd>
                     </div>
                   ) : null}
+                  <div className="pt-1">
+                    <Link
+                      href={`/app/kliendid/${inquiry.client.id}`}
+                      className="text-sm font-semibold text-[var(--brand)] hover:underline"
+                    >
+                      Ava kliendi profiil →
+                    </Link>
+                  </div>
                 </dl>
               ) : (
                 <p className="text-sm text-[var(--ink-muted)]">

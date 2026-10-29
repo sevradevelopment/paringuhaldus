@@ -135,18 +135,7 @@ export async function getInquiryDetail(
   });
 }
 
-export async function listOrgClients(organizationId: string) {
-  return prisma.client.findMany({
-    where: { organizationId },
-    orderBy: { name: "asc" },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
-    },
-  });
-}
+export { listOrgClients } from "@/lib/clients/queries";
 
 export function monthStartUtc(date = new Date()): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));

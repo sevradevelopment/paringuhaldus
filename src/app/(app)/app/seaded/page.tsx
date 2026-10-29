@@ -1,17 +1,5 @@
-import type { Metadata } from "next";
-import { Settings } from "lucide-react";
-import { ComingSoon } from "@/components/dashboard/coming-soon";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "Seaded – Päringuhaldus.ee",
-};
-
-export default function SeadedPage() {
-  return (
-    <ComingSoon
-      icon={Settings}
-      title="Seaded"
-      description="Siia tulevad organisatsiooni, meeskonna ja konto seaded."
-    />
-  );
+export default function SeadedIndexPage() {
+  redirect("/app/seaded/ettevote");
 }

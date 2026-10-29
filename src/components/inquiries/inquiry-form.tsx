@@ -27,6 +27,8 @@ type ClientOption = {
   id: string;
   name: string;
   email: string | null;
+  companyName?: string | null;
+  archivedAt?: Date | null;
 };
 
 type InquiryFormProps = {
@@ -157,9 +159,14 @@ export function InquiryForm({
           { value: "", label: "Klient määramata" },
           ...clients.map((client) => ({
             value: client.id,
-            label: client.email
-              ? `${client.name} (${client.email})`
-              : client.name,
+            label: [
+              client.name,
+              client.companyName ? `· ${client.companyName}` : null,
+              client.email ? `(${client.email})` : null,
+              client.archivedAt ? "[arhiiv]" : null,
+            ]
+              .filter(Boolean)
+              .join(" "),
           })),
           { value: "__new__", label: "+ Lisa uus klient" },
         ]}

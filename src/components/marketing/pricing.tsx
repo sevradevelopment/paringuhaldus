@@ -1,10 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   PricingCard,
   type PricingPlan,
 } from "@/components/marketing/pricing-card";
+import { createCheckoutSessionAction } from "@/lib/actions/billing";
+import type { PlanId } from "@/lib/billing/plans";
 import { cn } from "@/lib/utils";
 
 const YEARLY_DISCOUNT = 0.2;
@@ -61,8 +64,10 @@ function formatEuro(value: number): string {
 }
 
 export function Pricing() {
+  const router = useRouter();
   const [billing, setBilling] = useState<"monthly" | "yearly">("monthly");
   const [notice, setNotice] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
 
   const priceByPlan = useMemo(() => {
     return Object.fromEntries(
@@ -96,10 +101,28 @@ export function Pricing() {
     const plan = plans.find((item) => item.id === planId);
     if (!plan) return;
 
-    const billingLabel = billing === "yearly" ? "aastamakse" : "kuumakse";
-    setNotice(
-      `Registreerimine pole veel avatud. Valisid paketi ${plan.name} (${billingLabel}).`,
-    );
+    setNotice(null);
+    startTransition(async () => {
+      const result = await createCheckoutSessionAction({
+        plan: planId as PlanId,
+        interval: billing,
+      });
+      if (!result.ok) {
+        if (result.error.includes("logi sisse")) {
+          router.push(
+            `/login?next=${encodeURIComponent(`/app/seaded/tellimus?plan=${planId}&interval=${billing}`)}`,
+          );
+          return;
+        }
+        setNotice(result.error);
+        return;
+      }
+      if (result.url) {
+        window.location.href = result.url;
+        return;
+      }
+      setNotice("Checkout URL puudub.");
+    });
   }
 
   return (
@@ -177,6 +200,11 @@ export function Pricing() {
           ))}
         </div>
 
+        {pending ? (
+          <p className="mx-auto mt-8 text-center text-sm text-[var(--ink-muted)]">
+            Suunan Stripe Checkouti…
+          </p>
+        ) : null}
         {notice ? (
           <p
             role="status"

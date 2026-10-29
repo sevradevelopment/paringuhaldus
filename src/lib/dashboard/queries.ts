@@ -33,9 +33,15 @@ export async function getDashboardStats(
         },
       }),
       prisma.quote.count({
-        where: { organizationId, status: "PENDING" },
+        where: {
+          organizationId,
+          archivedAt: null,
+          status: { in: ["PENDING", "SENT"] },
+        },
       }),
-      prisma.client.count({ where: { organizationId } }),
+      prisma.client.count({
+        where: { organizationId, archivedAt: null },
+      }),
     ]);
 
   return {

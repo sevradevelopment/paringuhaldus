@@ -33,12 +33,16 @@ async function requireTenant() {
   };
 }
 
-function revalidateInquiryPaths(inquiryId?: string) {
+function revalidateInquiryPaths(inquiryId?: string, clientId?: string | null) {
   revalidatePath("/app");
   revalidatePath("/app/paringud");
+  revalidatePath("/app/kliendid");
   if (inquiryId) {
     revalidatePath(`/app/paringud/${inquiryId}`);
     revalidatePath(`/app/paringud/${inquiryId}/muuda`);
+  }
+  if (clientId) {
+    revalidatePath(`/app/kliendid/${clientId}`);
   }
 }
 
@@ -63,15 +67,39 @@ async function resolveClientId(
     if (!name) {
       throw new Error("CLIENT_NAME_REQUIRED");
     }
+    const email = input.newClientEmail.trim().toLowerCase() || null;
+    if (email) {
+      const existingEmail = await tx.client.findFirst({
+        where: {
+          organizationId,
+          email: { equals: email, mode: "insensitive" },
+        },
+        select: { id: true, name: true },
+      });
+      if (existingEmail) {
+        throw new Error(`CLIENT_EMAIL_EXISTS:${existingEmail.name}`);
+      }
+    }
+
     const created = await tx.client.create({
       data: {
         organizationId,
         name,
-        email: input.newClientEmail.trim() || null,
+        email,
         phone: input.newClientPhone.trim() || null,
       },
       select: { id: true },
     });
+
+    await tx.clientActivity.create({
+      data: {
+        organizationId,
+        clientId: created.id,
+        type: "CREATED",
+        message: "Klient loodi päringu kaudu",
+      },
+    });
+
     return created.id;
   }
 
@@ -155,7 +183,7 @@ export async function createInquiryAction(
       return created;
     });
 
-    revalidateInquiryPaths(inquiry.id);
+    revalidateInquiryPaths(inquiry.id, inquiry.clientId);
     return { ok: true, inquiryId: inquiry.id };
   } catch (error) {
     if (error instanceof Error) {
@@ -167,6 +195,13 @@ export async function createInquiryAction(
           ok: false,
           error: "Uue kliendi nimi on kohustuslik",
           fieldErrors: { newClientName: ["Uue kliendi nimi on kohustuslik"] },
+        };
+      }
+      if (error.message.startsWith("CLIENT_EMAIL_EXISTS:")) {
+        const name = error.message.slice("CLIENT_EMAIL_EXISTS:".length);
+        return {
+          ok: false,
+          error: `Sama e-postiga klient on juba olemas (${name}). Vali olemasolev klient või kasuta teist e-posti.`,
         };
       }
     }
@@ -208,7 +243,7 @@ export async function updateInquiryAction(
   }
 
   try {
-    await prisma.$transaction(async (tx) => {
+    const resolvedClientId = await prisma.$transaction(async (tx) => {
       const clientId = await resolveClientId(
         tx,
         tenant.organizationId,
@@ -280,13 +315,27 @@ export async function updateInquiryAction(
           },
         });
       }
+
+      return clientId;
     });
 
-    revalidateInquiryPaths(inquiryId);
+    revalidateInquiryPaths(
+      inquiryId,
+      resolvedClientId ?? existing.clientId,
+    );
     return { ok: true, inquiryId };
   } catch (error) {
-    if (error instanceof Error && error.message === "CLIENT_NOT_FOUND") {
-      return { ok: false, error: "Valitud klienti ei leitud" };
+    if (error instanceof Error) {
+      if (error.message === "CLIENT_NOT_FOUND") {
+        return { ok: false, error: "Valitud klienti ei leitud" };
+      }
+      if (error.message.startsWith("CLIENT_EMAIL_EXISTS:")) {
+        const name = error.message.slice("CLIENT_EMAIL_EXISTS:".length);
+        return {
+          ok: false,
+          error: `Sama e-postiga klient on juba olemas (${name}). Vali olemasolev klient või kasuta teist e-posti.`,
+        };
+      }
     }
     return {
       ok: false,

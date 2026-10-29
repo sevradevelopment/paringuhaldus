@@ -67,13 +67,13 @@ async function OverviewContent() {
         <StatCard
           title="Ootel hinnapakkumised"
           value={stats.pendingQuotes}
-          description="Ootel staatusega pakkumised"
+          description="Mustandid ja saadetud pakkumised"
           icon={FileClock}
         />
         <StatCard
           title="Kliendid"
           value={stats.clientsCount}
-          description="Organisatsiooni kliendid"
+          description="Aktiivsed kliendid"
           icon={Users}
         />
       </section>

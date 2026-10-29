@@ -24,14 +24,14 @@ export default async function MuudaParingPage({
 }) {
   const session = await requireOrgSession();
   const { id } = await params;
-  const [inquiry, clients] = await Promise.all([
-    getInquiryDetail(session.organizationId, id),
-    listOrgClients(session.organizationId),
-  ]);
-
+  const inquiry = await getInquiryDetail(session.organizationId, id);
   if (!inquiry) {
     notFound();
   }
+
+  const clients = await listOrgClients(session.organizationId, {
+    includeArchivedIds: inquiry.clientId ? [inquiry.clientId] : [],
+  });
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
