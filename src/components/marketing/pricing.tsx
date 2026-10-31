@@ -115,6 +115,9 @@ export function Pricing() {
           return;
         }
         setNotice(result.error);
+        if (result.portalUrl) {
+          window.location.href = result.portalUrl;
+        }
         return;
       }
       if (result.url) {

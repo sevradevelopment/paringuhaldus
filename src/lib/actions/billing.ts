@@ -2,8 +2,9 @@
 
 import { auth } from "@/auth";
 import {
-  hasActiveSubscription,
+  isStripeOpenSubscriptionStatus,
   planIdToEnum,
+  shouldBlockDuplicateCheckout,
   type PlanId,
 } from "@/lib/billing/plans";
 import { prisma } from "@/lib/db";
@@ -12,6 +13,7 @@ import {
   getStripePriceId,
   isStripeConfigured,
 } from "@/lib/stripe/client";
+import type Stripe from "stripe";
 
 export type BillingActionResult =
   | { ok: true; url?: string }
@@ -23,6 +25,54 @@ function appBaseUrl() {
     process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
     "http://localhost:3000"
   );
+}
+
+const DUPLICATE_CHECKOUT_MESSAGE =
+  "Sul on juba olemasolev tellimus. Uue Checkouti avamine on blokeeritud — muuda või tühista tellimus Stripe arveldusportaalis.";
+
+async function createPortalRedirect(
+  stripe: Stripe,
+  customerId: string,
+  message: string,
+): Promise<BillingActionResult> {
+  try {
+    const portal = await stripe.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: `${appBaseUrl()}/app/seaded/tellimus`,
+    });
+    return {
+      ok: false,
+      error: message,
+      portalUrl: portal.url,
+    };
+  } catch (error) {
+    console.error("[billing] portal session for duplicate block failed", error);
+    return {
+      ok: false,
+      error:
+        "Sul on juba olemasolev tellimus. Uue Checkouti avamine on blokeeritud. Paketi muutmiseks või tühistamiseks kasuta nuppu „Halda arveldust (Stripe)”.",
+    };
+  }
+}
+
+/** Best-effort: open Stripe subscriptions on this customer (race / DB desync). */
+async function customerHasOpenStripeSubscription(
+  stripe: Stripe,
+  customerId: string,
+): Promise<boolean> {
+  try {
+    const listed = await stripe.subscriptions.list({
+      customer: customerId,
+      status: "all",
+      limit: 20,
+    });
+    return listed.data.some((sub) =>
+      isStripeOpenSubscriptionStatus(sub.status),
+    );
+  } catch (error) {
+    console.error("[billing] open subscription race check failed", error);
+    return false;
+  }
 }
 
 export async function createCheckoutSessionAction(input: {
@@ -60,32 +110,16 @@ export async function createCheckoutSessionAction(input: {
   });
   if (!org) return { ok: false, error: "Organisatsiooni ei leitud" };
 
-  // Prevent duplicate subscriptions: active/trialing + existing Stripe sub → Portal
-  if (
-    hasActiveSubscription(org.subscriptionStatus) &&
-    org.stripeSubscriptionId
-  ) {
+  // Local DB: non-terminal status + existing Stripe sub → Portal
+  if (shouldBlockDuplicateCheckout(org)) {
     if (org.stripeCustomerId) {
-      try {
-        const portal = await stripe.billingPortal.sessions.create({
-          customer: org.stripeCustomerId,
-          return_url: `${appBaseUrl()}/app/seaded/tellimus`,
-        });
-        return {
-          ok: false,
-          error:
-            "Sul on juba aktiivne tellimus. Uue Checkouti avamine on blokeeritud — suuname sind Stripe arveldusportaali.",
-          portalUrl: portal.url,
-        };
-      } catch (error) {
-        console.error("[billing] portal session for duplicate block failed", error);
-      }
+      return createPortalRedirect(
+        stripe,
+        org.stripeCustomerId,
+        "Sul on juba aktiivne või pooleliolev tellimus. Uue Checkouti avamine on blokeeritud — suuname sind Stripe arveldusportaali.",
+      );
     }
-    return {
-      ok: false,
-      error:
-        "Sul on juba aktiivne või prooviperioodi tellimus. Uue Checkouti avamine on blokeeritud. Paketi muutmiseks või tühistamiseks kasuta nuppu „Halda arveldust (Stripe)”.",
-    };
+    return { ok: false, error: DUPLICATE_CHECKOUT_MESSAGE };
   }
 
   let customerId = org.stripeCustomerId;
@@ -103,6 +137,13 @@ export async function createCheckoutSessionAction(input: {
       where: { id: org.id },
       data: { stripeCustomerId: customerId },
     });
+  } else if (await customerHasOpenStripeSubscription(stripe, customerId)) {
+    // Concurrent Checkout / DB lag: Stripe still has an open subscription
+    return createPortalRedirect(
+      stripe,
+      customerId,
+      "Sul on Stripesis juba avatud tellimus. Uue Checkouti avamine on blokeeritud — suuname sind Stripe arveldusportaali.",
+    );
   }
 
   const checkout = await stripe.checkout.sessions.create({

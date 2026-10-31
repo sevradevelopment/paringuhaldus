@@ -47,6 +47,66 @@ export function hasActiveSubscription(
   return status === "ACTIVE" || status === "TRIALING";
 }
 
+/**
+ * Non-terminal subscription statuses that still own a Stripe subscription.
+ * New Checkout must be blocked; manage via Customer Portal instead.
+ */
+export const CHECKOUT_BLOCKING_STATUSES: readonly SubscriptionStatus[] = [
+  "ACTIVE",
+  "TRIALING",
+  "PAST_DUE",
+  "UNPAID",
+  "INCOMPLETE",
+] as const;
+
+export function isCheckoutBlockingStatus(
+  status: SubscriptionStatus,
+): boolean {
+  return (CHECKOUT_BLOCKING_STATUSES as readonly string[]).includes(status);
+}
+
+/**
+ * Block new Checkout when a non-terminal Stripe subscription already exists.
+ * Allow again only for CANCELED / NONE / missing stripeSubscriptionId.
+ */
+export function shouldBlockDuplicateCheckout(org: {
+  subscriptionStatus: SubscriptionStatus;
+  stripeSubscriptionId: string | null;
+}): boolean {
+  return (
+    Boolean(org.stripeSubscriptionId) &&
+    isCheckoutBlockingStatus(org.subscriptionStatus)
+  );
+}
+
+/** Stripe subscription statuses that indicate an open (non-terminal) sub. */
+export const STRIPE_OPEN_SUBSCRIPTION_STATUSES = [
+  "active",
+  "trialing",
+  "past_due",
+  "unpaid",
+  "incomplete",
+  "paused",
+] as const;
+
+export function isStripeOpenSubscriptionStatus(status: string): boolean {
+  return (STRIPE_OPEN_SUBSCRIPTION_STATUSES as readonly string[]).includes(
+    status,
+  );
+}
+
+/**
+ * Checkout Session payment_status that may proceed to paid entitlement sync.
+ * "unpaid" (e.g. async bank methods) must wait for async_payment_succeeded.
+ */
+export function checkoutPaymentAllowsFulfillment(
+  paymentStatus: string | null | undefined,
+): boolean {
+  return (
+    paymentStatus === "paid" || paymentStatus === "no_payment_required"
+  );
+}
+
 export type OrgBillingFields = {
   plan: OrganizationPlan;
   subscriptionStatus: SubscriptionStatus;

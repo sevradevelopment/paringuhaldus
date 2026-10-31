@@ -9,9 +9,9 @@ function publishableKey(): string | undefined {
   return process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.trim() || undefined;
 }
 
-/** Accepts sk_/rk_ test or live secret keys. */
+/** Accepts sk_/rk_/rkcs_ test or live secret keys (rkcs = claimable sandbox). */
 export function isStripeSecretKey(key: string): boolean {
-  return /^(sk|rk)_(test|live)_/.test(key);
+  return /^(sk|rk|rkcs)_(test|live)_/.test(key);
 }
 
 export function isStripePublishableKey(key: string): boolean {
@@ -31,7 +31,7 @@ export function getStripe(): Stripe | null {
   if (!key) return null;
   if (!isStripeSecretKey(key)) {
     console.warn(
-      "[stripe] Expected a Stripe secret key (sk_test_/sk_live_/rk_test_/rk_live_). Refusing invalid key.",
+      "[stripe] Expected a Stripe secret key (sk_/rk_/rkcs_ test or live). Refusing invalid key.",
     );
     return null;
   }

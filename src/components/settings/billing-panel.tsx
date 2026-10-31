@@ -12,7 +12,12 @@ import {
   createBillingPortalAction,
   createCheckoutSessionAction,
 } from "@/lib/actions/billing";
-import { PLAN_LIMITS, PLAN_PRICES_EUR, type PlanId } from "@/lib/billing/plans";
+import {
+  PLAN_LIMITS,
+  PLAN_PRICES_EUR,
+  shouldBlockDuplicateCheckout,
+  type PlanId,
+} from "@/lib/billing/plans";
 import { formatEtDate } from "@/lib/inquiries/labels";
 
 const statusLabel: Record<SubscriptionStatus, string> = {
@@ -56,9 +61,10 @@ export function BillingPanel({
   const [error, setError] = useState<string | null>(null);
   const periodEnd = asDate(currentPeriodEnd);
 
-  const hasManagedSubscription =
-    (subscriptionStatus === "ACTIVE" || subscriptionStatus === "TRIALING") &&
-    hasStripeSubscription;
+  const hasManagedSubscription = shouldBlockDuplicateCheckout({
+    subscriptionStatus,
+    stripeSubscriptionId: hasStripeSubscription ? "existing" : null,
+  });
 
   function checkout(planId: PlanId) {
     setError(null);
@@ -175,9 +181,9 @@ export function BillingPanel({
 
       {hasManagedSubscription ? (
         <p className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-          Aktiivne tellimus on juba olemas. Paketi muutmiseks, uuendamiseks või
-          tühistamiseks kasuta nuppu „Halda arveldust (Stripe)” — uut Checkouti ei
-          avata.
+          Olemasolev (aktiivne, proovi-, hilinenud või pooleliolev) tellimus on
+          juba seotud. Paketi muutmiseks, maksmiseks või tühistamiseks kasuta
+          nuppu „Halda arveldust (Stripe)” — uut Checkouti ei avata.
         </p>
       ) : null}
 

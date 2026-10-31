@@ -5,6 +5,7 @@ import type {
   OrganizationPlan,
   SubscriptionStatus,
 } from "@prisma/client";
+import { checkoutPaymentAllowsFulfillment } from "@/lib/billing/plans";
 import { prisma } from "@/lib/db";
 import { planFromStripePriceId } from "@/lib/stripe/client";
 
@@ -232,9 +233,82 @@ async function syncOrganizationFromSubscription(
   });
 }
 
+/**
+ * Sync org from Checkout Session. Always prefer live Subscription status from
+ * Stripe. Never grant ACTIVE paid plan from unpaid/incomplete session fields.
+ * Success URL must not activate — only this path (and subscription events).
+ */
+async function handleCheckoutSessionCompleted(
+  session: Stripe.Checkout.Session,
+) {
+  const organizationId =
+    session.metadata?.organizationId ||
+    (typeof session.client_reference_id === "string"
+      ? session.client_reference_id
+      : null);
+  if (!organizationId) return;
+
+  const paymentAllows = checkoutPaymentAllowsFulfillment(
+    session.payment_status,
+  );
+  const subscriptionId =
+    typeof session.subscription === "string"
+      ? session.subscription
+      : session.subscription?.id ?? null;
+
+  if (subscriptionId) {
+    const { getStripe } = await import("@/lib/stripe/client");
+    const stripe = getStripe();
+    if (stripe) {
+      try {
+        const subscription =
+          await stripe.subscriptions.retrieve(subscriptionId);
+        // Unpaid async Checkout: still sync real Stripe status (often incomplete)
+        // so we never invent ACTIVE. Paid/trialing comes from subscription.status.
+        await syncOrganizationFromSubscription(subscription, organizationId);
+        if (!paymentAllows) {
+          console.info(
+            "[stripe.webhook] checkout payment_status not paid yet; synced subscription status only",
+            {
+              organizationId,
+              paymentStatus: session.payment_status,
+              subscriptionStatus: subscription.status,
+            },
+          );
+        }
+        return;
+      } catch (error) {
+        console.error(
+          "[stripe.webhook] subscription retrieve failed; safe fallback (no ACTIVE grant)",
+          error,
+        );
+      }
+    }
+  }
+
+  // Safe fallback: store Stripe ids only. Do NOT set ACTIVE or upgrade plan.
+  const customerId =
+    typeof session.customer === "string" ? session.customer : undefined;
+  await prisma.organization.update({
+    where: { id: organizationId },
+    data: {
+      ...(customerId ? { stripeCustomerId: customerId } : {}),
+      ...(subscriptionId ? { stripeSubscriptionId: subscriptionId } : {}),
+      subscriptionStatus: "INCOMPLETE",
+      // Keep plan as-is / do not promote — wait for subscription.* or async paid
+    },
+  });
+}
+
 async function processStripeEvent(event: Stripe.Event) {
   switch (event.type) {
-    case "checkout.session.completed": {
+    case "checkout.session.completed":
+    case "checkout.session.async_payment_succeeded": {
+      const session = event.data.object as Stripe.Checkout.Session;
+      await handleCheckoutSessionCompleted(session);
+      break;
+    }
+    case "checkout.session.async_payment_failed": {
       const session = event.data.object as Stripe.Checkout.Session;
       const organizationId =
         session.metadata?.organizationId ||
@@ -242,54 +316,8 @@ async function processStripeEvent(event: Stripe.Event) {
           ? session.client_reference_id
           : null);
       if (!organizationId) break;
-
-      const subscriptionId =
-        typeof session.subscription === "string"
-          ? session.subscription
-          : session.subscription?.id ?? null;
-
-      if (subscriptionId) {
-        const { getStripe } = await import("@/lib/stripe/client");
-        const stripe = getStripe();
-        if (stripe) {
-          try {
-            const subscription =
-              await stripe.subscriptions.retrieve(subscriptionId);
-            await syncOrganizationFromSubscription(
-              subscription,
-              organizationId,
-            );
-            break;
-          } catch (error) {
-            console.error(
-              "[stripe.webhook] subscription retrieve failed; falling back to session fields",
-              error,
-            );
-          }
-        }
-      }
-
-      // Fallback when subscription retrieve is unavailable
-      const priceIdFromSession = undefined;
-      const resolved = resolvePlanAndInterval({
-        priceId: priceIdFromSession,
-        metadata: session.metadata,
-        fallbackPlan: "STARTER",
-      });
-
-      await prisma.organization.update({
-        where: { id: organizationId },
-        data: {
-          plan: resolved.plan,
-          billingInterval: resolved.interval ?? undefined,
-          stripeCustomerId:
-            typeof session.customer === "string"
-              ? session.customer
-              : undefined,
-          stripeSubscriptionId: subscriptionId ?? undefined,
-          subscriptionStatus: "ACTIVE",
-        },
-      });
+      // Record failure without granting paid access
+      await handleCheckoutSessionCompleted(session);
       break;
     }
     case "customer.subscription.updated":

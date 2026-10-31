@@ -44,6 +44,7 @@
     "dotenv-cli": "^11.1.0",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
+    "playwright": "^1.64.1",
     "prisma": "^6.16.3",
     "tailwindcss": "^4",
     "typescript": "^5"

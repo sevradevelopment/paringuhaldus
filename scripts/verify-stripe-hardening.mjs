@@ -1,6 +1,7 @@
 /**
  * Offline smoke checks for Stripe hardening logic (no network, no LIVE keys).
- * Mirrors planFromStripePriceId + getEffectivePlan / canExportPdf rules.
+ * Mirrors planFromStripePriceId, getEffectivePlan, duplicate-checkout matrix,
+ * and checkout payment_status fulfillment rules.
  * Usage: node scripts/verify-stripe-hardening.mjs
  */
 import assert from "node:assert/strict";
@@ -34,6 +35,71 @@ function planFromStripePriceId(priceId) {
 
 function hasActiveSubscription(status) {
   return status === "ACTIVE" || status === "TRIALING";
+}
+
+const CHECKOUT_BLOCKING_STATUSES = [
+  "ACTIVE",
+  "TRIALING",
+  "PAST_DUE",
+  "UNPAID",
+  "INCOMPLETE",
+];
+
+function shouldBlockDuplicateCheckout(org) {
+  return (
+    Boolean(org.stripeSubscriptionId) &&
+    CHECKOUT_BLOCKING_STATUSES.includes(org.subscriptionStatus)
+  );
+}
+
+function checkoutPaymentAllowsFulfillment(paymentStatus) {
+  return (
+    paymentStatus === "paid" || paymentStatus === "no_payment_required"
+  );
+}
+
+/**
+ * Mirrors webhook fallback policy: never invent ACTIVE from session alone.
+ * Paid access comes only from retrieved subscription.status via sync.
+ */
+function checkoutFallbackSubscriptionStatus(paymentStatus) {
+  void paymentStatus;
+  return "INCOMPLETE";
+}
+
+function shouldGrantPaidPlanFromCheckoutFallback(paymentStatus) {
+  // Even when paid, fallback must not upgrade plan without subscription retrieve
+  void paymentStatus;
+  return false;
+}
+
+function mapSubscriptionStatus(status) {
+  switch (status) {
+    case "active":
+      return "ACTIVE";
+    case "trialing":
+      return "TRIALING";
+    case "past_due":
+      return "PAST_DUE";
+    case "canceled":
+      return "CANCELED";
+    case "incomplete":
+    case "incomplete_expired":
+      return "INCOMPLETE";
+    case "unpaid":
+      return "UNPAID";
+    default:
+      return "NONE";
+  }
+}
+
+function planAfterSubscriptionSync(subscriptionStatus, resolvedPlan) {
+  const inactive =
+    subscriptionStatus === "CANCELED" ||
+    subscriptionStatus === "UNPAID" ||
+    subscriptionStatus === "NONE" ||
+    subscriptionStatus === "INCOMPLETE";
+  return inactive ? "STARTER" : resolvedPlan;
 }
 
 function getEffectivePlan(org) {
@@ -117,33 +183,77 @@ assert.equal(
   null,
 );
 
-// B: duplicate-subscription gate condition
-function shouldBlockCheckout(org) {
-  return (
-    hasActiveSubscription(org.subscriptionStatus) &&
-    Boolean(org.stripeSubscriptionId)
+// B: duplicate-subscription status matrix
+const blockMatrix = [
+  ["ACTIVE", "sub_1", true],
+  ["TRIALING", "sub_1", true],
+  ["PAST_DUE", "sub_1", true],
+  ["UNPAID", "sub_1", true],
+  ["INCOMPLETE", "sub_1", true],
+  ["CANCELED", "sub_1", false],
+  ["NONE", "sub_1", false],
+  ["ACTIVE", null, false],
+  ["TRIALING", null, false],
+  ["PAST_DUE", null, false],
+  ["CANCELED", null, false],
+  ["NONE", null, false],
+];
+
+for (const [subscriptionStatus, stripeSubscriptionId, expected] of blockMatrix) {
+  assert.equal(
+    shouldBlockDuplicateCheckout({ subscriptionStatus, stripeSubscriptionId }),
+    expected,
+    `shouldBlockDuplicateCheckout(${subscriptionStatus}, ${stripeSubscriptionId})`,
   );
 }
+
+// C: checkout payment_status fulfillment rules
+assert.equal(checkoutPaymentAllowsFulfillment("paid"), true);
+assert.equal(checkoutPaymentAllowsFulfillment("no_payment_required"), true);
+assert.equal(checkoutPaymentAllowsFulfillment("unpaid"), false);
+assert.equal(checkoutPaymentAllowsFulfillment(null), false);
+assert.equal(checkoutPaymentAllowsFulfillment(undefined), false);
+
+assert.equal(checkoutFallbackSubscriptionStatus("paid"), "INCOMPLETE");
+assert.equal(checkoutFallbackSubscriptionStatus("unpaid"), "INCOMPLETE");
+assert.equal(shouldGrantPaidPlanFromCheckoutFallback("paid"), false);
+assert.equal(shouldGrantPaidPlanFromCheckoutFallback("unpaid"), false);
+
+// Subscription sync distinguishes paid vs trialing vs unpaid/incomplete
+assert.equal(mapSubscriptionStatus("active"), "ACTIVE");
+assert.equal(mapSubscriptionStatus("trialing"), "TRIALING");
+assert.equal(mapSubscriptionStatus("unpaid"), "UNPAID");
+assert.equal(mapSubscriptionStatus("incomplete"), "INCOMPLETE");
+assert.equal(planAfterSubscriptionSync("ACTIVE", "BUSINESS"), "BUSINESS");
+assert.equal(planAfterSubscriptionSync("TRIALING", "PRO"), "PRO");
+assert.equal(planAfterSubscriptionSync("INCOMPLETE", "BUSINESS"), "STARTER");
+assert.equal(planAfterSubscriptionSync("UNPAID", "PRO"), "STARTER");
+assert.equal(planAfterSubscriptionSync("CANCELED", "BUSINESS"), "STARTER");
+
+// Paid features require ACTIVE/TRIALING + sub id (not unpaid/incomplete invent)
 assert.equal(
-  shouldBlockCheckout({
-    subscriptionStatus: "ACTIVE",
-    stripeSubscriptionId: "sub_1",
+  canExportPdf({
+    plan: "BUSINESS",
+    subscriptionStatus: "INCOMPLETE",
+    stripeSubscriptionId: "sub_new",
+  }),
+  false,
+);
+assert.equal(
+  canExportPdf({
+    plan: "BUSINESS",
+    subscriptionStatus: "UNPAID",
+    stripeSubscriptionId: "sub_new",
+  }),
+  false,
+);
+assert.equal(
+  canExportPdf({
+    plan: "BUSINESS",
+    subscriptionStatus: "TRIALING",
+    stripeSubscriptionId: "sub_new",
   }),
   true,
-);
-assert.equal(
-  shouldBlockCheckout({
-    subscriptionStatus: "CANCELED",
-    stripeSubscriptionId: "sub_1",
-  }),
-  false,
-);
-assert.equal(
-  shouldBlockCheckout({
-    subscriptionStatus: "ACTIVE",
-    stripeSubscriptionId: null,
-  }),
-  false,
 );
 
 console.log("verify-stripe-hardening: OK");

@@ -1,13 +1,8 @@
-"use client";
+import { cacheLife } from "next/cache";
 
-import { useEffect, useState } from "react";
-
-export function CopyrightYear() {
-  const [year, setYear] = useState<number | null>(null);
-
-  useEffect(() => {
-    setYear(new Date().getFullYear());
-  }, []);
-
-  return <>{year ?? "—"}</>;
+/** Cached copyright year for static prerender (Next.js Cache Components). */
+export async function CopyrightYear() {
+  "use cache";
+  cacheLife("max");
+  return <>{new Date().getFullYear()}</>;
 }
